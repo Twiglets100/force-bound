@@ -231,6 +231,7 @@ function confirmStarterChoice(species, x) {
 }
 
 function launchNodeStabilization() {
+    if (overworld) overworld.stop();
     const overlay = document.getElementById('siphon-overlay');
     overlay.classList.add('active');
     
@@ -238,9 +239,10 @@ function launchNodeStabilization() {
         canvas: '#oscilloscope-canvas',
         wavelengthSlider: document.getElementById('slider-wavelength'),
         amplitudeSlider: document.getElementById('slider-amplitude'),
-        duration: 5000,
+        duration: 8000,
         onComplete: (accuracy) => {
             overlay.classList.remove('active');
+            if (overworld) overworld.start();
             if (accuracy >= 0.90) {
                 Sound.playConfirm();
                 window.storyState = 'NODE_STABILIZED';
@@ -259,6 +261,27 @@ function launchNodeStabilization() {
             }
         }
     });
+
+    const wSlider = document.getElementById('slider-wavelength');
+    const aSlider = document.getElementById('slider-amplitude');
+    const wVal = document.getElementById('val-wavelength');
+    const aVal = document.getElementById('val-amplitude');
+    
+    wVal.innerText = wSlider.value;
+    aVal.innerText = aSlider.value;
+    
+    wSlider.oninput = () => wVal.innerText = wSlider.value;
+    aSlider.oninput = () => aVal.innerText = aSlider.value;
+    
+    document.getElementById('btn-siphon-confirm').onclick = () => {
+        siphonSystem.triggerCapture();
+    };
+    
+    document.getElementById('btn-siphon-abort').onclick = () => {
+        siphonSystem.stop();
+        overlay.classList.remove('active');
+        if (overworld) overworld.start();
+    };
 }
 
 function showVictoryScreen() {
@@ -446,7 +469,8 @@ function triggerEncounter() {
         updateDexRecord(wildKey, 'seen');
         document.getElementById('battle-console').innerHTML = '';
         showScreen('screen-battle');
-        battleEngine.startBattle(playerTeam[0], wildForce, playerTeam);
+        const firstHealthy = playerTeam.find(f => f.currentStability > 0) || playerTeam[0];
+        battleEngine.startBattle(firstHealthy, wildForce, playerTeam);
     }, 450);
 }
 
@@ -674,6 +698,25 @@ function setupUIListeners() {
         Sound.playClick();
     });
 
+    const openTeamBtn = document.getElementById('btn-open-team');
+    if (openTeamBtn) {
+        openTeamBtn.replaceWith(openTeamBtn.cloneNode(true));
+        document.getElementById('btn-open-team').addEventListener('click', () => {
+            overworld.stop();
+            openTeamConfig();
+        });
+    }
+
+    const closeTeamBtn = document.getElementById('btn-close-team');
+    if (closeTeamBtn) {
+        closeTeamBtn.replaceWith(closeTeamBtn.cloneNode(true));
+        document.getElementById('btn-close-team').addEventListener('click', () => {
+            showScreen('screen-overworld');
+            overworld.start();
+            Sound.playClick();
+        });
+    }
+
     const dismissBtn = document.getElementById('btn-dismiss-spectrum');
     dismissBtn.replaceWith(dismissBtn.cloneNode(true));
     document.getElementById('btn-dismiss-spectrum').addEventListener('click', () => {
@@ -880,6 +923,150 @@ function displayDexDetail(key, status) {
         document.getElementById('dex-stat-spd').innerText = '??';
         document.getElementById('dex-svg-container').innerHTML = SVGGenerator.generate(key, 'Liquid', 'damaged', '100px', '100px');
     }
+}
+
+function openTeamConfig() {
+    showScreen('screen-team');
+    renderTeamConfig();
+    Sound.playClick();
+}
+
+let draggedIndex = null;
+function renderTeamConfig() {
+    const container = document.getElementById('team-cards-container');
+    container.innerHTML = '';
+    
+    if (playerTeam.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; color: #8c9bb0; font-family: var(--font-terminal); margin-top: 50px;">
+                NO ACTIVE ANOMALY SIGNALS DETECTED IN ROSTER.
+                <br>
+                SELECT A STARTER FORCE FROM THE RESONANCE LAB.
+            </div>
+        `;
+        return;
+    }
+
+    playerTeam.forEach((member, idx) => {
+        const card = document.createElement('div');
+        card.className = 'glass-panel team-card';
+        card.draggable = true;
+        card.dataset.index = idx;
+        
+        const isActive = idx === 0;
+        card.style.display = 'flex';
+        card.style.alignItems = 'center';
+        card.style.padding = '12px 20px';
+        card.style.gap = '20px';
+        card.style.cursor = 'grab';
+        card.style.borderRadius = '6px';
+        card.style.position = 'relative';
+        card.style.marginBottom = '8px';
+        
+        if (isActive) {
+            card.style.borderColor = 'var(--color-resonance)';
+            card.style.boxShadow = '0 0 15px rgba(255, 0, 127, 0.15), 0 0 10px rgba(255, 0, 127, 0.1) inset';
+        } else {
+            card.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+            card.style.boxShadow = 'none';
+        }
+        
+        const typeColors = {
+            'gravity': 'var(--color-gravity)',
+            'electromagnetism': 'var(--color-em)',
+            'entropy': 'var(--color-entropy)',
+            'resonance': 'var(--color-resonance)'
+        };
+        const colorVal = typeColors[member.type.toLowerCase()] || 'var(--color-em)';
+        
+        const stabilityPct = Math.ceil((member.currentStability / member.maxStability) * 100);
+        const xpNeeded = member.level * 100;
+        const xpPct = Math.min(100, Math.ceil((member.xp / xpNeeded) * 100));
+        
+        card.innerHTML = `
+            <div style="position: absolute; top: -8px; left: 15px; font-size: 0.65rem; font-family: var(--font-terminal); background: #05070e; padding: 2px 8px; border-radius: 4px; border: 1px solid ${isActive ? 'var(--color-resonance)' : 'rgba(255,255,255,0.15)'}; color: ${isActive ? 'var(--color-resonance)' : '#8c9bb0'};">
+                ${isActive ? 'ACTIVE LOAD OUT VECTOR' : `STANDBY VECTOR #${idx + 1}`}
+            </div>
+            
+            <div style="width: 55px; height: 55px; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.3); border-radius: 4px; border: 1px solid rgba(255,255,255,0.05); pointer-events: none;">
+                ${SVGGenerator.generate(member.key || member.species, member.phaseState, 'idle', '48px', '48px')}
+            </div>
+            
+            <div style="width: 140px; pointer-events: none;">
+                <strong style="color: #fff; font-size: 1.05rem;">${member.nickname}</strong>
+                <div style="font-family: var(--font-terminal); font-size: 0.8rem; color: ${colorVal}; margin-top: 2px;">
+                    LV.${member.level} // ${member.type.toUpperCase()}
+                </div>
+            </div>
+            
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 8px; font-family: var(--font-terminal); font-size: 0.75rem; pointer-events: none;">
+                <div>
+                    <div style="display:flex; justify-content:space-between; margin-bottom: 2px; color: #e0e6ed;">
+                        <span>STABILITY: ${member.currentStability}/${member.maxStability}</span>
+                        <span>${stabilityPct}%</span>
+                    </div>
+                    <div style="width: 100%; height: 6px; background: rgba(0,0,0,0.5); border-radius: 3px; overflow: hidden; border: 1px solid rgba(255,255,255,0.05);">
+                        <div style="width: ${stabilityPct}%; height: 100%; background: linear-gradient(90deg, var(--color-entropy) 0%, #7fff00 100%);"></div>
+                    </div>
+                </div>
+                
+                <div>
+                    <div style="display:flex; justify-content:space-between; margin-bottom: 2px; color: #8c9bb0;">
+                        <span>RESONANCE LEVEL PROGRESS: ${member.xp}/${xpNeeded} XP</span>
+                        <span>${xpPct}%</span>
+                    </div>
+                    <div style="width: 100%; height: 4px; background: rgba(0,0,0,0.5); border-radius: 2px; overflow: hidden;">
+                        <div style="width: ${xpPct}%; height: 100%; background: var(--color-em);"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="display: flex; gap: 15px; font-family: var(--font-terminal); font-size: 0.8rem; color: #8c9bb0; padding-left: 20px; border-left: 1px solid rgba(255,255,255,0.08); pointer-events: none;">
+                <div>ATK: <span style="color: #fff;">${member.stats.attack}</span></div>
+                <div>DEF: <span style="color: #fff;">${member.stats.defense}</span></div>
+                <div>SPD: <span style="color: #fff;">${member.stats.speed}</span></div>
+            </div>
+            
+            <div class="drag-handle" style="font-size: 1.5rem; color: rgba(255,255,255,0.25); cursor: grab; padding-left: 10px; user-select: none; pointer-events: none;">
+                ⠿
+            </div>
+        `;
+        
+        card.addEventListener('dragstart', (e) => {
+            draggedIndex = idx;
+            card.style.opacity = '0.5';
+            e.dataTransfer.effectAllowed = 'move';
+        });
+        
+        card.addEventListener('dragend', () => {
+            card.style.opacity = '1';
+            draggedIndex = null;
+        });
+        
+        card.addEventListener('dragover', (e) => {
+            e.preventDefault();
+        });
+        
+        card.addEventListener('drop', (e) => {
+            e.preventDefault();
+            if (draggedIndex !== null && draggedIndex !== idx) {
+                const temp = playerTeam[draggedIndex];
+                playerTeam.splice(draggedIndex, 1);
+                playerTeam.splice(idx, 0, temp);
+                
+                const state = SaveSystem.load();
+                if (state) {
+                    state.team = playerTeam;
+                    SaveSystem.save(state);
+                }
+                
+                renderTeamConfig();
+                Sound.playConfirm();
+            }
+        });
+        
+        container.appendChild(card);
+    });
 }
 
 function showScreen(screenId) {
