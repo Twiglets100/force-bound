@@ -194,11 +194,15 @@ function confirmStarterChoice(species, x) {
             nickname: spec.species,
             level: 5,
             xp: 0,
-            maxStability: spec.baseStats.maxStability,
-            currentStability: spec.baseStats.maxStability,
+            maxStability: spec.baseStats.maxStability + 5 * 4,
+            currentStability: spec.baseStats.maxStability + 5 * 4,
             currentEnergy: 50,
             phaseState: 'Solid',
-            stats: { ...spec.baseStats },
+            stats: {
+                attack: spec.baseStats.attack + 5 * 2,
+                defense: spec.baseStats.defense + 5 * 2,
+                speed: spec.baseStats.speed + 5 * 1
+            },
             moves: [...spec.startingMoves]
         };
         
@@ -320,6 +324,31 @@ function initGame(state) {
         },
         onStateChange: (state) => {
             updateBattleUI(state);
+        },
+        onVfx: ({ type, isPlayer }) => {
+            const vfxClasses = {
+                'Gravity': 'vfx-gravity-shake',
+                'Electromagnetism': 'vfx-em-glitch',
+                'Entropy': 'vfx-entropy-decay',
+                'Resonance': 'vfx-resonance-ripple'
+            };
+            const cls = vfxClasses[type];
+            if (cls) {
+                const body = document.getElementById('game-body');
+                body.classList.add(cls);
+                setTimeout(() => {
+                    body.classList.remove(cls);
+                }, 600);
+            }
+            if (type === 'Gravity') {
+                Sound.playGlitch();
+            } else if (type === 'Electromagnetism') {
+                Sound.playHit();
+            } else if (type === 'Entropy') {
+                Sound.playClick();
+            } else {
+                Sound.playConfirm();
+            }
         }
     });
     window.battleEngine = battleEngine; // sync
@@ -399,7 +428,7 @@ function triggerEncounter() {
             species: wildSpec.species,
             key: wildKey,
             type: wildSpec.primaryType,
-            nickname: wildSpec.species,
+            nickname: "Wild " + wildSpec.species,
             level: wildLvl,
             xp: 0,
             maxStability: wildSpec.baseStats.maxStability + wildLvl * 4,
@@ -449,8 +478,21 @@ function updateBattleUI(battleState) {
     if (pStabilityPct < 20) pBar.classList.add('critical');
     else if (pStabilityPct < 50) pBar.classList.add('warning');
     
+    const pEnergyVal = pf.currentEnergy !== undefined ? pf.currentEnergy : 50;
+    document.getElementById('player-energy-val').innerText = `${pEnergyVal}/50`;
+    const pEnergyBar = document.getElementById('player-energy-fill');
+    if (pEnergyBar) {
+        pEnergyBar.style.width = `${(pEnergyVal / 50) * 100}%`;
+    }
+    
     document.getElementById('player-state-badge').innerText = pf.phaseState;
-    document.getElementById('player-svg-container').innerHTML = SVGGenerator.generate(pf.key || pf.species, pf.phaseState, battleState === 'ORDERING' || battleState === 'EXECUTION' ? 'attacking' : 'idle');
+    
+    // Handle SVG state customization
+    let pSvgState = battleEngine.playerSvgState || 'idle';
+    if (battleEngine.playerSvgState === undefined) {
+        pSvgState = (battleState === 'ORDERING' || battleState === 'EXECUTION') ? 'attacking' : 'idle';
+    }
+    document.getElementById('player-svg-container').innerHTML = SVGGenerator.generate(pf.key || pf.species, pf.phaseState, pSvgState);
     
     // Enemy HUD
     document.getElementById('enemy-name').innerText = ef.nickname;
@@ -463,8 +505,21 @@ function updateBattleUI(battleState) {
     if (eStabilityPct < 20) eBar.className = 'stability-bar-fill critical';
     else if (eStabilityPct < 50) eBar.className = 'stability-bar-fill warning';
     
+    const eEnergyVal = ef.currentEnergy !== undefined ? ef.currentEnergy : 50;
+    document.getElementById('enemy-energy-val').innerText = `${eEnergyVal}/50`;
+    const eEnergyBar = document.getElementById('enemy-energy-fill');
+    if (eEnergyBar) {
+        eEnergyBar.style.width = `${(eEnergyVal / 50) * 100}%`;
+    }
+    
     document.getElementById('enemy-state-badge').innerText = ef.phaseState;
-    document.getElementById('enemy-svg-container').innerHTML = SVGGenerator.generate(ef.key || ef.species, ef.phaseState, battleState === 'ORDERING' || battleState === 'EXECUTION' ? 'attacking' : 'idle');
+    
+    // Handle SVG state customization
+    let eSvgState = battleEngine.enemySvgState || 'idle';
+    if (battleEngine.enemySvgState === undefined) {
+        eSvgState = (battleState === 'ORDERING' || battleState === 'EXECUTION') ? 'attacking' : 'idle';
+    }
+    document.getElementById('enemy-svg-container').innerHTML = SVGGenerator.generate(ef.key || ef.species, ef.phaseState, eSvgState);
     
     // Controls Visibility
     if (battleState === 'SELECTION') {
@@ -522,6 +577,40 @@ function setupUIListeners() {
                 const move = MOVES[mKey];
                 Sound.playHit();
                 battleEngine.selectAction({ type: 'attack', move: move });
+            }
+        });
+
+        btn.addEventListener('mouseenter', () => {
+            const mKey = btn.dataset.moveKey;
+            const analyzer = document.getElementById('analyzer-box');
+            if (mKey && analyzer) {
+                const m = MOVES[mKey];
+                if (m) {
+                    const typeColors = {
+                        'gravity': 'var(--color-gravity)',
+                        'electromagnetism': 'var(--color-em)',
+                        'entropy': 'var(--color-entropy)',
+                        'resonance': 'var(--color-resonance)'
+                    };
+                    const colorVal = typeColors[m.type.toLowerCase()] || 'var(--color-em)';
+                    analyzer.classList.add('active-scan');
+                    analyzer.innerHTML = `
+                        <strong style="color: var(--color-em);">${m.name.toUpperCase()}</strong> | 
+                        TYPE: <span style="color: ${colorVal};">${m.type.toUpperCase()}</span> | 
+                        POWER: <span style="color: #fff;">${m.power || 0}</span> | 
+                        COST: <span style="color: #fff;">${m.energyCost || 0}</span> Energy
+                        <br>
+                        <span style="color: #c0d0e0; font-size: 0.8rem;">${m.description || ''}</span>
+                    `;
+                }
+            }
+        });
+
+        btn.addEventListener('mouseleave', () => {
+            const analyzer = document.getElementById('analyzer-box');
+            if (analyzer) {
+                analyzer.classList.remove('active-scan');
+                analyzer.innerText = "Hover over a move slot to engage field telemetry scanner...";
             }
         });
     });

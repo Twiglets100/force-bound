@@ -13,6 +13,10 @@ class BattleEngine {
 
         this.onStateChange = options.onStateChange || null;
         this.onLog = options.onLog || null;
+        this.onVfx = options.onVfx || null;
+        
+        this.playerSvgState = 'idle';
+        this.enemySvgState = 'idle';
     }
 
     log(msg) {
@@ -59,7 +63,7 @@ class BattleEngine {
         return { type: 'attack', move: this.movesDatabase[chosenMove] };
     }
 
-    selectAction(playerAction) {
+    async selectAction(playerAction) {
         if (this.state !== 'SELECTION' && this.state !== 'SWAP_PROMPT') return;
 
         if (this.state === 'SWAP_PROMPT') {
@@ -75,7 +79,7 @@ class BattleEngine {
         this.transitionTo('ORDERING');
         this.orderActions(playerAction, opponentAction);
         this.transitionTo('EXECUTION');
-        this.executeTurn();
+        await this.executeTurnAsync();
     }
 
     getModifiedSpeed(force) {
@@ -117,7 +121,8 @@ class BattleEngine {
         const typeMult = this.getTypeMultiplier(move.type, defender.type);
         const stab = move.type === attacker.type ? 1.2 : 1.0;
         const variance = 0.85 + Math.random() * 0.30;
-        return Math.max(1, Math.floor(basePower * (atk / def) * typeMult * stab * variance));
+        // Divide by 4 to scale damage to match stability pool levels
+        return Math.max(1, Math.floor((basePower * (atk / def) * typeMult * stab * variance) / 4));
     }
 
     orderActions(playerAction, opponentAction) {
@@ -150,7 +155,10 @@ class BattleEngine {
         this.turnQueue = playerFirst ? [p, o] : [o, p];
     }
 
-    executeTurn() {
+    async executeTurnAsync() {
+        this.playerSvgState = 'idle';
+        this.enemySvgState = 'idle';
+
         for (const turn of this.turnQueue) {
             if (turn.actor.currentStability <= 0) continue;
 
@@ -158,7 +166,11 @@ class BattleEngine {
                 const newForce = this.playerTeam[turn.action.forceIndex];
                 this.log(`${turn.actor.nickname} was recalled.`);
                 this.playerForce = newForce;
+                this.transitionTo('EXECUTION');
+                await new Promise(r => setTimeout(r, 800));
                 this.log(`Deployed ${newForce.nickname}!`);
+                this.transitionTo('EXECUTION');
+                await new Promise(r => setTimeout(r, 800));
             } else if (turn.action.type === 'flee') {
                 const pSpeed = this.getModifiedSpeed(this.playerForce);
                 const oSpeed = this.getModifiedSpeed(this.opponentForce);
@@ -170,6 +182,8 @@ class BattleEngine {
                     return;
                 } else {
                     this.log("Escape attempt blocked by opposing magnetic fluctuations!");
+                    this.transitionTo('EXECUTION');
+                    await new Promise(r => setTimeout(r, 1000));
                 }
             } else if (turn.action.type === 'siphon') {
                 this.log(`Siphon online. Aligning coupling frequency...`);
@@ -180,6 +194,8 @@ class BattleEngine {
                 const cost = move.energyCost || 0;
                 if (turn.actor.currentEnergy !== undefined && turn.actor.currentEnergy < cost) {
                     this.log(`${turn.actor.nickname} lacks energy to channel ${move.name}!`);
+                    this.transitionTo('EXECUTION');
+                    await new Promise(r => setTimeout(r, 1000));
                     continue;
                 }
 
@@ -187,32 +203,69 @@ class BattleEngine {
                     turn.actor.currentEnergy = Math.max(0, turn.actor.currentEnergy - cost);
                 }
 
+                this.log(`${turn.actor.nickname} channelled ${move.name}!`);
+                
+                if (turn.isPlayer) {
+                    this.playerSvgState = 'attacking';
+                } else {
+                    this.enemySvgState = 'attacking';
+                }
+                
+                if (this.onVfx) {
+                    this.onVfx({ type: move.type, isPlayer: turn.isPlayer });
+                }
+                
+                this.transitionTo('EXECUTION');
+                await new Promise(r => setTimeout(r, 600));
+
                 const dmg = this.calculateDamage(turn.actor, turn.target, move);
                 turn.target.currentStability = Math.max(0, turn.target.currentStability - dmg);
 
-                this.log(`${turn.actor.nickname} channelled ${move.name}!`);
                 this.log(`Dealt ${dmg} stability damage to ${turn.target.nickname}.`);
 
+                if (turn.isPlayer) {
+                    this.enemySvgState = 'damaged';
+                    this.playerSvgState = 'idle';
+                } else {
+                    this.playerSvgState = 'damaged';
+                    this.enemySvgState = 'idle';
+                }
+                
+                this.transitionTo('EXECUTION');
+                
                 const mult = this.getTypeMultiplier(move.type, turn.target.type);
                 if (mult > 1.0) this.log(`Amplified resonance detected! Super-effective.`);
                 if (mult < 1.0) this.log(`Dampened resonance detected. Ineffective.`);
+                
+                await new Promise(r => setTimeout(r, 1000));
+                
+                this.playerSvgState = 'idle';
+                this.enemySvgState = 'idle';
+                this.transitionTo('EXECUTION');
             }
 
             if (turn.target.currentStability <= 0) {
                 this.log(`${turn.target.nickname} field stability collapsed!`);
+                this.transitionTo('EXECUTION');
+                await new Promise(r => setTimeout(r, 1000));
             }
         }
 
-        // Healing phase state
         const regen = (f) => {
             if (f.currentStability > 0 && f.phaseState === 'Liquid') {
                 const amt = Math.floor(f.maxStability * 0.05);
                 f.currentStability = Math.min(f.maxStability, f.currentStability + amt);
                 this.log(`${f.nickname} self-stabilized by +${amt}% (Liquid state).`);
+                return true;
             }
+            return false;
         };
-        regen(this.playerForce);
-        regen(this.opponentForce);
+        const pRegen = regen(this.playerForce);
+        const oRegen = regen(this.opponentForce);
+        if (pRegen || oRegen) {
+            this.transitionTo('EXECUTION');
+            await new Promise(r => setTimeout(r, 1000));
+        }
 
         this.evaluateStability();
     }

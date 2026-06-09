@@ -81,6 +81,10 @@
                         <div id="enemy-stability-fill" class="stability-bar-fill"></div>
                     </div>
                     <div class="stability-percent">Stability: <span id="enemy-stability-val">100%</span></div>
+                    <div class="energy-bar-container">
+                        <div id="enemy-energy-fill" class="energy-bar-fill"></div>
+                    </div>
+                    <div class="energy-text">Energy: <span id="enemy-energy-val">50/50</span></div>
                     <span id="enemy-state-badge" class="state-badge">Solid</span>
                 </div>
                 <div id="enemy-svg-container" style="width: 170px; height: 170px; display: flex; align-items: center; justify-content: center;"></div>
@@ -97,6 +101,10 @@
                         <div id="player-stability-fill" class="stability-bar-fill"></div>
                     </div>
                     <div class="stability-percent">Stability: <span id="player-stability-val">100%</span></div>
+                    <div class="energy-bar-container">
+                        <div id="player-energy-fill" class="energy-bar-fill"></div>
+                    </div>
+                    <div class="energy-text">Energy: <span id="player-energy-val">50/50</span></div>
                     <span id="player-state-badge" class="state-badge">Solid</span>
                 </div>
                 <div id="player-svg-container" style="width: 170px; height: 170px; display: flex; align-items: center; justify-content: center;"></div>
@@ -132,6 +140,12 @@
                     <button id="btn-battle-swap">SWAP FORCE</button>
                     <button id="btn-battle-flee">FLEE (ABORT)</button>
                 </div>
+                
+                <!-- Analyzer box -->
+                <div id="analyzer-box" class="glass-panel" style="grid-column: span 2; height: 65px; margin-top: 10px; font-family: var(--font-terminal); font-size: 0.85rem; padding: 10px 15px; color: #8c9bb0;">
+                    Hover over a move slot to engage field telemetry scanner...
+                </div>
+                
                 <!-- Sibling dismiss spectrum end panel container -->
                 <div id="battle-end-controls" style="display: none; grid-column: span 2; width: 100%;">
                     <button id="btn-dismiss-spectrum" class="terminal-btn" style="width: 100%; height: 52px; margin-top: 15px;">DISMISS SPECTRUM</button>
