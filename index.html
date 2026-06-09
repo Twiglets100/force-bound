@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="ForceBound: Chronicles of Resonance - A physics-based creature collection and turn-based battle game.">
+    <title>ForceBound: Chronicles of Resonance</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&family=Space+Grotesk:wght@300;500;700&display=swap" rel="stylesheet">
+    <!-- Styling -->
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body id="game-body" class="crt-screen crt-flicker">
+    <!-- CRT Overlays -->
+    <div class="crt-overlay"></div>
+    <div class="crt-scanline"></div>
+
+    <!-- MAIN MENU SCREEN -->
+    <div id="screen-main-menu" class="screen active">
+        <div class="glass-panel" style="width: 700px; text-align: center;">
+            <h1 class="glow-text text-glitch" style="color: var(--color-em);">ForceBound</h1>
+            <div class="subtitle">Chronicles of Resonance // v1.0.0</div>
+            
+            <p style="margin-bottom: 25px; color: #8c9bb0; font-size: 0.95rem; line-height: 1.5;">
+                Welcome, Resonator. Spacetime coordinates have fractured. 
+                Enter your ID below to wake up in Vector Station Alpha and coordinate stabilization.
+            </p>
+
+            <div style="margin: 20px 0;">
+                <label for="resonator-name" style="font-family: 'Orbitron', sans-serif; font-size: 0.9rem; margin-right: 10px;">RESONATOR ID:</label>
+                <input type="text" id="resonator-name" value="Resonator-01" style="background: rgba(0, 0, 0, 0.4); border: 1px solid var(--color-border); color: #fff; padding: 8px 12px; font-family: var(--font-terminal); border-radius: 4px; outline: none; width: 220px; text-align: center; font-size: 1rem; box-shadow: 0 0 10px rgba(0,242,255,0.05) inset;">
+            </div>
+
+            <button id="btn-start-game" style="margin-top: 20px; width: 280px; height: 50px;">INITIATE RESONANCE</button>
+            <br>
+            <button id="btn-resume-game" style="margin-top: 10px; width: 280px; height: 50px; display: none;">RESUME RESONANCE</button>
+        </div>
+    </div>
+
+    <!-- OVERWORLD SCREEN -->
+    <div id="screen-overworld" class="screen">
+        <div class="overworld-container crt-screen">
+            <canvas id="overworld-canvas" width="800" height="600"></canvas>
+            
+            <div class="overworld-hud">
+                <div class="hud-panel">
+                    <span>COORDS: [<span id="hud-coords" style="color:#fff;">04,04</span>]</span>
+                    <span id="hud-sector" style="color:var(--color-em);">SECTOR: QUARTERS</span>
+                </div>
+                <div class="hud-panel">
+                    <button id="btn-open-dex" style="padding: 6px 14px; font-size: 11px;">FORCEDEX</button>
+                    <button id="btn-save-game" style="padding: 6px 14px; font-size: 11px;">SAVE PERSISTENCE</button>
+                </div>
+            </div>
+
+            <!-- Dialogue Box Overlay -->
+            <div id="dialogue-box" class="glass-panel" style="position: absolute; bottom: 20px; left: 20px; right: 20px; height: 130px; display: none; flex-direction: column; justify-content: space-between; z-index: 50; font-family: var(--font-terminal); font-size: 1.05rem;">
+                <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: 4px; margin-bottom: 4px; font-weight: bold; color: var(--color-em);">
+                    <span id="dialogue-speaker">M-0T</span>
+                    <span style="font-size: 0.75rem; color: var(--text-muted);">[INTERACTING]</span>
+                </div>
+                <div id="dialogue-text" style="flex: 1; color: #fff; line-height: 1.4; font-family: var(--font-terminal);"></div>
+                <div id="dialogue-prompt" style="text-align: right; font-size: 0.75rem; color: var(--color-em);">[ SPACE ] ADVANCE</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- BATTLE SCREEN -->
+    <div id="screen-battle" class="screen">
+        <div class="glass-panel battle-arena">
+            <!-- Opponent Pane -->
+            <div class="fighter-pane" style="color: var(--color-resonance);">
+                <div id="enemy-hud" class="fighter-hud">
+                    <div class="hud-top">
+                        <span id="enemy-name">WILD ANOMALY</span>
+                        <span id="enemy-level">LV.0</span>
+                    </div>
+                    <div class="stability-bar-container">
+                        <div id="enemy-stability-fill" class="stability-bar-fill"></div>
+                    </div>
+                    <div class="stability-percent">Stability: <span id="enemy-stability-val">100%</span></div>
+                    <span id="enemy-state-badge" class="state-badge">Solid</span>
+                </div>
+                <div id="enemy-svg-container" style="width: 170px; height: 170px; display: flex; align-items: center; justify-content: center;"></div>
+            </div>
+
+            <!-- Player Active Force Pane -->
+            <div class="fighter-pane" style="color: var(--color-em);">
+                <div id="player-hud" class="fighter-hud">
+                    <div class="hud-top">
+                        <span id="player-name">BOUND FORCE</span>
+                        <span id="player-level">LV.0</span>
+                    </div>
+                    <div class="stability-bar-container">
+                        <div id="player-stability-fill" class="stability-bar-fill"></div>
+                    </div>
+                    <div class="stability-percent">Stability: <span id="player-stability-val">100%</span></div>
+                    <span id="player-state-badge" class="state-badge">Solid</span>
+                </div>
+                <div id="player-svg-container" style="width: 170px; height: 170px; display: flex; align-items: center; justify-content: center;"></div>
+            </div>
+
+            <!-- Console Log -->
+            <div id="battle-console" class="battle-console">
+                <div>[SYSTEM] INITIALIZING RESONANCE TELEMETRY READOUT...</div>
+            </div>
+
+            <!-- Control Actions -->
+            <div class="battle-controls">
+                <div class="moves-grid">
+                    <button class="move-btn" data-slot="0">
+                        <span class="move-name">---</span>
+                        <span class="move-meta">ENERGY: -</span>
+                    </button>
+                    <button class="move-btn" data-slot="1">
+                        <span class="move-name">---</span>
+                        <span class="move-meta">ENERGY: -</span>
+                    </button>
+                    <button class="move-btn" data-slot="2">
+                        <span class="move-name">---</span>
+                        <span class="move-meta">ENERGY: -</span>
+                    </button>
+                    <button class="move-btn" data-slot="3">
+                        <span class="move-name">---</span>
+                        <span class="move-meta">ENERGY: -</span>
+                    </button>
+                </div>
+                <div class="tactical-grid">
+                    <button id="btn-battle-siphon" class="resonance" style="border-color: var(--color-resonance); color: var(--color-resonance);">SIPHON (CATCH)</button>
+                    <button id="btn-battle-swap">SWAP FORCE</button>
+                    <button id="btn-battle-flee">FLEE (ABORT)</button>
+                </div>
+                <!-- Sibling dismiss spectrum end panel container -->
+                <div id="battle-end-controls" style="display: none; grid-column: span 2; width: 100%;">
+                    <button id="btn-dismiss-spectrum" class="terminal-btn" style="width: 100%; height: 52px; margin-top: 15px;">DISMISS SPECTRUM</button>
+                </div>
+            </div>
+            
+            <!-- Siphon Mini-Game Screen -->
+            <div id="siphon-overlay" class="siphon-overlay">
+                <h2 style="color: var(--color-resonance); margin-bottom: 5px;">RESONANCE INJECTION</h2>
+                <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 20px; font-family: var(--font-terminal);">
+                    ALIGN SLIDERS TO PHASE MATCH QUANTUM SINE WAVES
+                </p>
+                
+                <div class="oscilloscope-panel">
+                    <div class="oscilloscope-grid"></div>
+                    <canvas id="oscilloscope-canvas" width="450" height="180"></canvas>
+                </div>
+                
+                <div class="oscilloscope-controls">
+                    <div class="slider-group">
+                        <label>WAVELENGTH (FREQUENCY): <span id="val-wavelength" style="color: var(--color-em);">1.0</span></label>
+                        <input type="range" id="slider-wavelength" min="40" max="120" step="1" value="100">
+                    </div>
+                    <div class="slider-group">
+                        <label>AMPLITUDE (FIELD DENSITY): <span id="val-amplitude" style="color: var(--color-resonance);">1.0</span></label>
+                        <input type="range" id="slider-amplitude" min="15" max="65" step="1" value="30">
+                    </div>
+                    <div style="display: flex; gap: 15px; margin-top: 15px;">
+                        <button id="btn-siphon-confirm" class="resonance" style="flex: 2; border-color: var(--color-resonance); color: var(--color-resonance); height: 45px;">LOCK RESONANCE COUPLING</button>
+                        <button id="btn-siphon-abort" style="flex: 1; height: 45px;">ABORT</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Force Swap Sub-Menu overlay -->
+            <div id="swap-overlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5,7,15,0.96); z-index: 90; display: none; flex-direction: column; justify-content: center; align-items: center; padding: 30px;">
+                <h3 style="margin-bottom: 25px; color: var(--color-em);">CALIBRATING ALIGNMENT VECTORS</h3>
+                <div id="swap-list" style="width: 420px; display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; overflow-y: auto; max-height: 320px;"></div>
+                <button id="btn-swap-close" style="width: 150px;">CLOSE</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- FORCEDEX SCREEN -->
+    <div id="screen-forcedex" class="screen">
+        <div class="glass-panel forcedex-container">
+            <div class="dex-list-pane" id="dex-list">
+                <!-- Populated dynamically -->
+            </div>
+            <div class="dex-detail-pane glass-panel">
+                <div class="dex-detail-header">
+                    <div id="dex-svg-container" style="width: 100px; height: 100px; display: flex; align-items: center; justify-content: center;"></div>
+                    <div>
+                        <h2 id="dex-species-name" style="font-size: 1.6rem; color: var(--color-em);">---</h2>
+                        <div id="dex-type-tag" class="state-badge" style="border-color: var(--color-border); color: #fff;">TYPE: ---</div>
+                    </div>
+                </div>
+                <p id="dex-description" style="font-family: var(--font-terminal); font-size: 0.9rem; line-height: 1.45; color: #8c9bb0; border-top: 1px solid rgba(255,255,255,0.08); border-bottom: 1px solid rgba(255,255,255,0.08); padding: 15px 0; min-height: 120px;">
+                    No signal detected. Select an anomaly vector to inspect.
+                </p>
+                <div class="dex-stats-grid">
+                    <div>BASE HP/STABILITY: <span id="dex-stat-hp" style="color:var(--color-em);">0</span></div>
+                    <div>BASE ATTACK: <span id="dex-stat-atk" style="color:var(--color-em);">0</span></div>
+                    <div>BASE DEFENSE: <span id="dex-stat-def" style="color:var(--color-em);">0</span></div>
+                    <div>BASE SPEED: <span id="dex-stat-spd" style="color:var(--color-em);">0</span></div>
+                </div>
+                <button id="btn-close-dex" style="margin-top: auto; align-self: flex-end; width: 180px;">CLOSE DATABASE</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Scripts -->
+    <script src="js/data/db.js"></script>
+    <script src="js/render/assets.js"></script>
+    <script src="js/core/sound.js"></script>
+    <script src="js/core/save.js"></script>
+    <script src="js/engine/overworld.js"></script>
+    <script src="js/engine/battle.js"></script>
+    <script src="js/engine/siphon.js"></script>
+    <script src="js/game.js"></script>
+</body>
+</html>
